@@ -6,8 +6,8 @@ namespace MediaCMD
 {
     class Program
     {
-        public static string[] mediaProcesses = {"AppleMusic", "Firefox"}; //List of process names to search for (find using Task Manager)
-        public static string[] appIDs = {"AppleInc.AppleMusicWin_nzyj5cx40ttqa!App", "308046B0AF4A39CB"}; //App IDs to search for (find using commented code below)
+        public static string[] mediaProcesses = ["AppleMusic", "Firefox"]; //List of process names to search for (find using Task Manager)
+        public static string[] appIDs = ["AppleInc.AppleMusicWin_nzyj5cx40ttqa!App", "308046B0AF4A39CB"]; //App IDs to search for (find using commented code below)
 
         public static bool IsMediaAppRunning() {
             //Determine if any media app is running that is in the mediaProcess list
@@ -45,51 +45,63 @@ namespace MediaCMD
             return null; //None found, so return null
         }
 
+        static async void ListApps(IReadOnlyList<GlobalSystemMediaTransportControlsSession> sessions)
+        {
+            //Get a list of media app IDs
+            foreach (var session in sessions)
+            {
+                var mediaProperties = await session.TryGetMediaPropertiesAsync();
+                var status = session.GetPlaybackInfo().PlaybackStatus.ToString();
+                var appID = session.SourceAppUserModelId;
+                if (status == "Playing")
+                {
+                    Console.WriteLine($"{mediaProperties.AlbumArtist} - {mediaProperties.Title}");
+                    Console.WriteLine(session.SourceAppUserModelId);
+                }
+                else
+                    Console.WriteLine(appID);
+            }
+
+        }
+
         //Calling async methods in Main(): https://stackoverflow.com/questions/13002507/how-can-i-call-an-async-method-in-main
         static async Task Main(string[] args)
         {
             string action = "toggle"; //Default to toggle Play/Pause unless an action is specified
-            if(args.Length > 0) {
-                if(args[0] == "toggle" || args[0] == "play" || args[0] == "pause" || args[0] == "prev" || args[0] == "previous" || args[0] == "next" || args[0] == "stop")
+            if (args.Length > 0)
+            {
+                if (args[0] == "toggle" || args[0] == "play" || args[0] == "pause" || args[0] == "prev" || args[0] == "previous" || args[0] == "next" || args[0] == "stop" || args[0] == "apps")
                     action = args[0];
             }
-            if(IsMediaAppRunning()) {
-                var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-                var sessions = sessionManager.GetSessions();
+            var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var sessions = sessionManager.GetSessions();
 
-                //The commented code below can be used to find the app IDs of apps that are currently playing media
-                //Remove the if statement if you want all connected media apps to be displayed
-                /*
-                foreach (var session in sessions)
+            var prioritySession = GetPrioritySession(sessions);
+
+            if (IsMediaAppRunning())
+            {
+                if (prioritySession != null)
                 {
-                    var mediaProperties = await session.TryGetMediaPropertiesAsync();
-                    var status = session.GetPlaybackInfo().PlaybackStatus.ToString();
-                    var appID = session.SourceAppUserModelId;
-                    if(status == "Playing") {
-                    Console.WriteLine($"{mediaProperties.AlbumArtist} - {mediaProperties.Title}");
-                    Console.WriteLine(session.SourceAppUserModelId);
+                    if (action == "toggle")
+                        await prioritySession.TryTogglePlayPauseAsync();
+                    else if (action == "play")
+                        await prioritySession.TryPlayAsync();
+                    else if (action == "pause")
+                        await prioritySession.TryPauseAsync();
+                    else if (action == "prev" || action == "previous")
+                        await prioritySession.TrySkipPreviousAsync();
+                    else if (action == "next")
+                        await prioritySession.TrySkipNextAsync();
+                    else if (action == "stop")
+                        await prioritySession.TryStopAsync();
+                    else if (action == "apps")
+                    {
+                        ListApps(sessions);
                     }
-                    else
-                        Console.WriteLine(appID);
-                }
-                */
-                var session = GetPrioritySession(sessions);
-
-                if(session != null) {
-                    if(action == "toggle")
-                        await session.TryTogglePlayPauseAsync();
-                    else if(action == "play")
-                        await session.TryPlayAsync();
-                    else if(action == "pause")
-                        await session.TryPauseAsync();
-                    else if(action == "prev" || action == "previous")
-                        await session.TrySkipPreviousAsync();
-                    else if(action == "next")
-                        await session.TrySkipNextAsync();
-                    else if(action == "stop")
-                        await session.TryStopAsync();
                 }
             }
+            else if (action == "apps")
+                ListApps(sessions);
         }
     }
 }
